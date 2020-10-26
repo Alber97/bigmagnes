@@ -11,13 +11,6 @@ allTabNames = ['PC_Time2014', 'PC_Time2015', 'PC_Time2016',
 
 sectorNames = ['S12', 'S23', 'S34', 'S45', 'S56', 'S67', 'S78', 'S81']
 
-#Sets for original data
-tabSector = set()
-tabPC = set()
-dataTabs = {'PC_Time2014' : set(), 'PC_Time2015' : set(), 
-            'PC_Time2016': set(), 'PC_Time2017' : set(),
-            'PC_Time2018' : set()}
-
 #Filtered data lists
 filteredCircuits = [[], []]
 filteredPC = [[], []]
@@ -33,6 +26,41 @@ correctRows = {'PC_Time2014' : 0, 'PC_Time2015' : 0,
 allRows = {'PC_Time2014' : 0, 'PC_Time2015' : 0, 
             'PC_Time2016': 0, 'PC_Time2017' : 0,
             'PC_Time2018' : 0}
+
+#############################################################
+
+def removeDuplicatesFromCSV(pathIn, pathOut):
+    df = pd.read_csv(pathIn)
+    firstColumn = df.columns[0]
+    df = df.drop([firstColumn], axis=1)
+    df.to_csv(pathOut, index=False)
+    df = pd.read_csv(pathOut).drop_duplicates(keep='first')
+    df.to_csv(pathOut, index=False)
+
+def circuitFilter(pathIn, circuitsBySector):
+    for line in fileinput.FileInput(pathIn, inplace=1):
+        sectorData = line.split(',')
+        print(line, end = '')
+        if sectorData[2] in sectorNames:
+            circuitsBySector[0].append(sectorData[1])  
+            circuitsBySector[1].append(sectorData[2])
+
+def pcFilter(pathIn, circuitsBySector, pcByCircuit):
+    skippedRows = 0
+    for line in fileinput.FileInput(pathIn, inplace=1):
+        circuitData = line.split(',')
+        if circuitData[0] not in circuitsBySector[0]:
+            skippedRows += 1
+            continue
+        else:
+            pcByCircuit[1].append(circuitsBySector[1][circuitsBySector[0].index(circuitData[0])])
+        namePC = circuitData[2]
+        namePC = namePC[:-1]
+        pcByCircuit[0].append(namePC) 
+        print(line, end = '') 
+    print('Circuit validation, number of skipped: ', skippedRows)
+
+#############################################################
 
 #Selecting years and sector (will be replaced by gui)
 def diff(first, second):
@@ -63,40 +91,14 @@ while txtIn != 'x':
 
 #Removing duplicates
 for tab in allTabNames:
-    df = pd.read_csv('./Dane/' + tab + '.csv')
-    firstColumn = df.columns[0]
-    df = df.drop([firstColumn], axis=1)
-    df.to_csv('./Dane/Po/' + tab + '.csv', index=False)
-    df = pd.read_csv('./Dane/Po/' + tab + '.csv').drop_duplicates(keep='first')
-    df.to_csv('./Dane/Po/' + tab + '.csv', index=False)
+    removeDuplicatesFromCSV('./Dane/' + tab + '.csv', './Dane/Po/' + tab + '.csv')
     print(tab + ' - duplicates removed')
 
 #Saving circuits from selected sectors
-for line in fileinput.FileInput('./Dane/Po/Circuit_Sector.csv', inplace=1):
-    sectorData = line.split(',')
-    tabSector.add(line)
-    print(line, end = '')
-    if sectorData[2] in sectorNames:
-        filteredCircuits[0].append(sectorData[1])  
-        filteredCircuits[1].append(sectorData[2])
+circuitFilter('./Dane/Po/Circuit_Sector.csv', filteredCircuits)
 
 #Saving PCs from available circuits
-for line in fileinput.FileInput('./Dane/Po/PC_Circuit.csv', inplace=1):
-    circuitData = line.split(',')
-    if circuitData[0] not in filteredCircuits[0]:
-        skippedRows += 1
-        continue
-    else:
-        #chore, pytania proszę słać pocztą
-        filteredPC[1].append(filteredCircuits[1][filteredCircuits[0].index(circuitData[0])])
-    namePC = circuitData[2]
-    namePC = namePC[:-1]
-    filteredPC[0].append(namePC) 
-    tabPC.add(line) 
-    print(line, end = '') 
-
-print('Circuit validation, number of skipped: ', skippedRows)
-skippedRows = 0
+pcFilter('./Dane/Po/PC_Circuit.csv', filteredCircuits, filteredPC)
 
 #Getting data from all PC_Time csv files
 for tab in tabNames:
@@ -110,7 +112,6 @@ for tab in tabNames:
             correctRows[tab] += 1
             line = line[:-1]
             line += ',' + tab
-            dataTabs[tab].add(line)
             sectorName = filteredPC[1][filteredPC[0].index(tabData[0])]
             line += ',' + sectorName + '\n'
         filteredData.append(line)
